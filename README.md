@@ -73,7 +73,22 @@ The reports are written to:
 - `reports/candidate_comparison.json`
 
 The generated reports provide a record of evaluation metrics and candidate comparisons.
+### Generate an Error Analysis Report
 
+Run the following command to inspect incorrect baseline predictions and recurring classification errors:
+
+```powershell
+python -m app.evaluation.error_analysis
+```
+
+The report is written to `reports/error_analysis.json` and includes:
+
+- Dataset size and overall error rate.
+- Incorrect cases with expected and predicted categories.
+- Incorrect cases with expected and predicted priorities.
+- Recurring category and priority error patterns.
+
+This report evaluates the deterministic keyword baseline against the supplied synthetic dataset. Its results should not be interpreted as production model performance.
 ## Release Governance
 
 The release gate evaluates candidates against configured thresholds for task success, latency, cost, and safety.
