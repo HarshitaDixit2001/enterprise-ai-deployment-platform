@@ -1,0 +1,63 @@
+
+[
+  {
+    "case_id": "CF-001",
+    "input": "The delivery was late, but customer support resolved my issue quickly.",
+    "expected_category": "general_feedback",
+    "expected_priority": "low"
+  },
+  {
+    "case_id": "CF-002",
+    "input": "I was charged twice for the same order. Please refund the extra payment.",
+    "expected_category": "billing",
+    "expected_priority": "high"
+  },
+  {
+    "case_id": "CF-003",
+    "input": "The mobile application crashes every time I try to open my account.",
+    "expected_category": "technical_issue",
+    "expected_priority": "high"
+  },
+  {
+    "case_id": "CF-004",
+    "input": "The product arrived in excellent condition and works perfectly.",
+    "expected_category": "general_feedback",
+    "expected_priority": "low"
+  },
+  {
+    "case_id": "CF-005",
+    "input": "Someone accessed my account without permission. I need immediate assistance.",
+    "expected_category": "security",
+    "expected_priority": "critical"
+  },
+  {
+    "case_id": "CF-006",
+    "input": "My invoice contains the wrong tax amount.",
+    "expected_category": "billing",
+    "expected_priority": "medium"
+  },
+  {
+    "case_id": "CF-007",
+    "input": "I cannot reset my password because the verification email never arrives.",
+    "expected_category": "technical_issue",
+    "expected_priority": "medium"
+  },
+  {
+    "case_id": "CF-008",
+    "input": "I want to cancel my subscription before the next renewal.",
+    "expected_category": "account_request",
+    "expected_priority": "medium"
+  },
+  {
+    "case_id": "CF-009",
+    "input": "The package was damaged and the contents are broken.",
+    "expected_category": "general_feedback",
+    "expected_priority": "medium"
+  },
+  {
+    "case_id": "CF-010",
+    "input": "Please delete my account and confirm that my personal data will be removed.",
+    "expected_category": "account_request",
+    "expected_priority": "high"
+  }
+]
