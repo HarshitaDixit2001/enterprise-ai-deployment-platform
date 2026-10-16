@@ -216,3 +216,62 @@ def test_release_history_returns_404_for_unknown_use_case():
     )
 
     assert response.status_code == 404
+
+
+def test_release_history_is_isolated_by_use_case(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        audit_service,
+        "AUDIT_LOG_PATH",
+        tmp_path / "release_audit.jsonl",
+    )
+
+    first_use_case = "release-isolation-first"
+    second_use_case = "release-isolation-second"
+
+    create_test_use_case(first_use_case)
+    create_test_use_case(second_use_case)
+
+    release_response = client.post(
+        f"/evaluations/{first_use_case}/release-decision",
+        json={
+            "candidate_id": "candidate-isolation-1",
+            "predictions": make_predictions(),
+        },
+    )
+
+    assert release_response.status_code == 200
+
+    first_history = client.get(
+        f"/evaluations/{first_use_case}/history"
+    )
+    second_history = client.get(
+        f"/evaluations/{second_use_case}/history"
+    )
+
+    assert first_history.status_code == 200
+    assert second_history.status_code == 200
+
+    assert len(first_history.json()) == 1
+    assert (
+        first_history.json()[0]["candidate_id"]
+        == "candidate-isolation-1"
+    )
+    assert second_history.json() == []
+
+
+
+def test_invalid_json_returns_client_error():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    with TestClient(app) as test_client:
+        response = test_client.post(
+            "/evaluations/run",
+            content="{invalid json",
+            headers={"Content-Type": "application/json"},
+        )
+
+    assert 400 <= response.status_code < 500

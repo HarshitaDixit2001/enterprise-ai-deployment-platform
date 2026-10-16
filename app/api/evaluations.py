@@ -1,18 +1,38 @@
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import JSONResponse
 
 from app.api.use_cases import find_use_case
 from app.evaluation.dataset import load_named_dataset
+from app.evaluation.health_check import check_evaluation_health
 from app.evaluation.runner import evaluate_predictions
+from app.evaluation.summary import generate_evaluation_summary
 from app.models.evaluation_request import ReleaseEvaluationRequest
 from app.models.release import ReleaseDecision
-from app.services.release_gate import evaluate_release
-from typing import Any
-
 from app.services.audit_service import (
     list_release_decisions,
     record_release_decision,
 )
+from app.services.release_gate import evaluate_release
+
 router = APIRouter(prefix="/evaluations", tags=["Evaluations"])
+
+
+@router.get("/summary")
+async def get_evaluation_summary() -> dict[str, Any]:
+    return generate_evaluation_summary()
+
+
+@router.get("/health")
+async def get_evaluation_health() -> JSONResponse:
+    result = check_evaluation_health()
+    status_code = 200 if result["status"] == "healthy" else 503
+
+    return JSONResponse(
+        status_code=status_code,
+        content=result,
+    )
 
 
 @router.post(
@@ -35,7 +55,7 @@ async def create_release_decision(
         cases = load_named_dataset(config.evaluation_dataset)
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
 
@@ -43,14 +63,14 @@ async def create_release_decision(
         report = evaluate_predictions(cases, request.predictions)
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
 
     decision = evaluate_release(
-    candidate_id=request.candidate_id,
-    report=report,
-    config=config,
+        candidate_id=request.candidate_id,
+        report=report,
+        config=config,
     )
 
     record_release_decision(

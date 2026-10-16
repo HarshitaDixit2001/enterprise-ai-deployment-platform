@@ -68,3 +68,19 @@ def test_invalid_use_case_is_rejected():
     response = client.post("/use-cases", json=payload)
 
     assert response.status_code == 422
+
+
+
+def test_create_use_case_rejects_invalid_risk_level():
+    response = client.post(
+        "/use-cases",
+        json={
+            "use_case_id": "invalid-risk-test",
+            "name": "Invalid Risk Test",
+            "business_objective": "Test input validation",
+            "risk_level": "extreme",
+            "evaluation_dataset": "customer_feedback_v1",
+        },
+    )
+
+    assert response.status_code == 422

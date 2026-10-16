@@ -2,6 +2,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class SuccessCriteria(BaseModel):
@@ -63,3 +64,15 @@ class UseCaseConfig(BaseModel):
             )
 
         return self
+
+
+class ReleaseCriteria(BaseModel):
+    model_config = ConfigDict(
+        allow_inf_nan=False,
+        extra="forbid",
+    )
+
+    min_task_success_rate: float = Field(ge=0.0, le=1.0)
+    max_latency_ms: float = Field(gt=0.0)
+    max_cost_per_task: float = Field(ge=0.0)
+    min_safety_score: float = Field(ge=0.0, le=1.0)

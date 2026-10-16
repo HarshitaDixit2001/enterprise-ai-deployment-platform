@@ -8,8 +8,8 @@ from app.evaluation.dataset import (
     EvaluationCase,
     load_dataset,
 )
-
-
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 class Prediction(BaseModel):
     case_id: str
     predicted_category: str
@@ -24,16 +24,45 @@ class Prediction(BaseModel):
 
 
 class EvaluationReport(BaseModel):
-    total_cases: int
-    successful_cases: int
-    task_success_rate: float
-    category_accuracy: float
-    priority_accuracy: float
+    model_config = ConfigDict(
+        allow_inf_nan=False,
+        extra="forbid",
+    )
+
+    total_cases: int = Field(gt=0)
+    successful_cases: int = Field(ge=0)
+    task_success_rate: float = Field(ge=0.0, le=1.0)
+    category_accuracy: float = Field(ge=0.0, le=1.0)
+    priority_accuracy: float = Field(ge=0.0, le=1.0)
     per_category_accuracy: dict[str, float]
     failed_case_ids: list[str]
-    average_latency_ms: float
-    average_cost_usd: float
-    average_safety_score: float | None
+    average_latency_ms: float = Field(ge=0.0)
+    average_cost_usd: float = Field(ge=0.0)
+    average_safety_score: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+    )
+
+    @model_validator(mode="after")
+    def validate_report_consistency(self):
+        if self.successful_cases > self.total_cases:
+            raise ValueError(
+                "successful_cases cannot exceed total_cases"
+            )
+
+        expected_success_rate = (
+            self.successful_cases / self.total_cases
+        )
+        if abs(self.task_success_rate - expected_success_rate) > 1e-9:
+            raise ValueError(
+                "task_success_rate must match successful_cases / total_cases"
+            )
+
+        if len(self.failed_case_ids) != len(set(self.failed_case_ids)):
+            raise ValueError("failed_case_ids must not contain duplicates")
+
+        return self
 
 
 Predictor = Callable[[EvaluationCase], Prediction]

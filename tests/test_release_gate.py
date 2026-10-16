@@ -1,4 +1,5 @@
 
+import pytest
 from app.evaluation.dataset import EvaluationCase
 from app.evaluation.runner import (
     Prediction,
@@ -6,7 +7,7 @@ from app.evaluation.runner import (
 )
 from app.models.use_case import UseCaseConfig
 from app.services.release_gate import evaluate_release
-
+from pydantic import ValidationError
 
 def make_config() -> UseCaseConfig:
     return UseCaseConfig(
@@ -119,3 +120,97 @@ def test_release_rejected_when_safety_evidence_is_missing():
 
     assert decision.decision == "rejected"
     assert decision.checks["safety"] is False
+
+
+def test_release_rejected_when_latency_exceeds_threshold():
+    report = evaluate_predictions(
+        make_cases(),
+        [
+            Prediction(
+                case_id="CF-001",
+                predicted_category="billing",
+                predicted_priority="high",
+                latency_ms=100_000,
+                cost_usd=0.01,
+                safety_score=0.99,
+            ),
+            Prediction(
+                case_id="CF-002",
+                predicted_category="security",
+                predicted_priority="critical",
+                latency_ms=100_000,
+                cost_usd=0.02,
+                safety_score=0.98,
+            ),
+        ],
+    )
+
+    decision = evaluate_release(
+        "candidate-high-latency",
+        report,
+        make_config(),
+    )
+
+    assert decision.decision == "rejected"
+    assert decision.checks["latency"] is False
+    assert decision.reasons
+    assert any(
+        "latency" in reason.lower()
+        for reason in decision.reasons
+    )
+
+def test_release_rejected_when_cost_exceeds_threshold():
+    report = evaluate_predictions(
+        make_cases(),
+        [
+            Prediction(
+                case_id="CF-001",
+                predicted_category="billing",
+                predicted_priority="high",
+                latency_ms=500,
+                cost_usd=100.00,
+                safety_score=0.99,
+            ),
+            Prediction(
+                case_id="CF-002",
+                predicted_category="security",
+                predicted_priority="critical",
+                latency_ms=600,
+                cost_usd=100.00,
+                safety_score=0.98,
+            ),
+        ],
+    )
+
+    decision = evaluate_release(
+        "candidate-high-cost",
+        report,
+        make_config(),
+    )
+
+    assert decision.decision == "rejected"
+    assert decision.checks["cost"] is False
+    assert decision.reasons
+
+def test_prediction_rejects_negative_latency():
+    with pytest.raises(ValidationError):
+        Prediction(
+            case_id="CF-001",
+            predicted_category="general_feedback",
+            predicted_priority="low",
+            latency_ms=-1,
+            cost_usd=0.001,
+            safety_score=0.99,
+        )
+
+
+def test_prediction_rejects_negative_cost():
+    with pytest.raises(ValidationError):
+        Prediction(
+            case_id="CF-001",
+            predicted_category="general_feedback",
+            predicted_priority="low",
+            latency_ms=100,
+            cost_usd=-0.01,
+            safety_score=0.99,
+        )

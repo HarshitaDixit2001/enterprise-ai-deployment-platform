@@ -9,6 +9,7 @@ from app.middleware import RequestContextMiddleware
 
 from app.services.readiness_service import check_readiness
 from app.api.deployments import router as deployments_router
+from app.core.exception_handlers import register_exception_handlers
 configure_logging()
 app = FastAPI(
     title="Enterprise AI Deployment & Evaluation Platform",
@@ -18,7 +19,7 @@ app = FastAPI(
     ),
     version="0.1.0",
 )
-
+register_exception_handlers(app)
 app.include_router(use_cases_router)
 app.include_router(evaluations_router)
 app.add_middleware(RequestContextMiddleware)

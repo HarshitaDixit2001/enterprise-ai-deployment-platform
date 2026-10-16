@@ -1,27 +1,28 @@
 # Enterprise AI Deployment & Evaluation Platform
 
-A Python and FastAPI platform demonstrating evaluation, release governance, deployment policy enforcement, audit logging, and observability for AI applications.
+A Python and FastAPI portfolio project demonstrating evaluation workflows, candidate comparison, release governance, deployment policy enforcement, audit logging, and observability for AI applications.
 
-The project focuses on the engineering systems needed to evaluate AI application candidates, make evidence-based release decisions, and enforce deployment policies before an application is released.
+The platform focuses on an important enterprise AI engineering problem: **how to evaluate a candidate, make an evidence-based release decision, and verify deployment permission before release.**
 
 ## Key Features
 
-- Dataset-based AI application evaluation
+- Dataset-based evaluation of AI application candidates
 - Task success, category accuracy, and priority accuracy metrics
-- Latency and cost tracking
-- Candidate comparison reports
+- Latency and estimated-cost tracking
+- Candidate comparison and error analysis reports
 - Configurable release gates for quality, latency, cost, and safety
-- Human approval requirements for deployment
-- Auditable release decisions
-- Health and readiness endpoints
+- Fail-closed handling of missing safety evidence
+- Deployment policy checks and human approval requirements
+- JSONL audit logging of release decisions
+- Health, readiness, and evaluation-monitoring endpoints
 - Request IDs, structured logging, and request metrics
-- Automated tests and continuous integration with GitHub Actions
+- Automated tests and GitHub Actions continuous integration
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    A[Client / API Request] --> B[FastAPI Application]
+    A[Client] --> B[FastAPI Application]
     B --> C[Use Case Registry]
     B --> D[Evaluation Runner]
     D --> E[Evaluation Dataset]
@@ -30,115 +31,122 @@ flowchart TD
     G --> H[Release Audit Log]
     H --> I[Deployment Policy Check]
     B --> J[Request Middleware]
-    J --> K[Request Metrics and Logs]
-    B --> L[Readiness Endpoint]
+    J --> K[Request IDs, Logs and Metrics]
+    B --> L[Health and Readiness Checks]
 ```
 
-This is a high-level architecture diagram, not an exact request-by-request execution sequence.
+This diagram illustrates the main components and their relationships; it is not an exact execution trace for every API request.
 
-## Evaluation and Release Governance
+## Evaluation Workflow
 
-The platform provides a reproducible workflow for assessing application candidates before deployment.
+The evaluation pipeline runs predictions against a supplied synthetic customer-feedback dataset and calculates:
 
-### Evaluation Capabilities
+- Task success rate
+- Category and priority accuracy
+- Per-category accuracy and failed case IDs
+- Average latency and estimated cost
+- Average safety score when evidence is available
 
-- **Dataset-based evaluation:** Runs predictions against a customer feedback dataset.
-- **Quality metrics:** Measures task success, category accuracy, and priority accuracy.
-- **Operational metrics:** Tracks latency and estimated cost.
-- **Candidate comparison:** Generates a comparison of candidate evaluation metrics.
-- **Release gates:** Checks configured quality, latency, cost, and safety thresholds.
-- **Human oversight:** Supports required human approval before deployment.
-- **Audit history:** Records release decisions for later review.
-- **Observability:** Exposes health, readiness, request metrics, and request IDs.
+Candidate comparison and error analysis help identify metric differences and recurring classification errors.
 
-### Generate Evaluation Reports
+### Generate reports
 
-Run these commands from the repository root with the virtual environment activated.
-
-Generate the baseline evaluation report:
+Run these commands from the repository root with the virtual environment activated:
 
 ```powershell
 python -c "from app.evaluation.report_generator import generate_report; print(generate_report())"
-```
-
-Generate the candidate comparison report:
-
-```powershell
 python -c "from app.evaluation.candidate_comparison import generate_baseline_comparison; print(generate_baseline_comparison())"
-```
-
-The reports are written to:
-
-- `reports/baseline_evaluation.json`
-- `reports/candidate_comparison.json`
-
-The generated reports provide a record of evaluation metrics and candidate comparisons.
-### Generate an Error Analysis Report
-
-Run the following command to inspect incorrect baseline predictions and recurring classification errors:
-
-```powershell
 python -m app.evaluation.error_analysis
 ```
 
-The report is written to `reports/error_analysis.json` and includes:
+Expected report paths, as configured by the application:
 
-- Dataset size and overall error rate.
-- Incorrect cases with expected and predicted categories.
-- Incorrect cases with expected and predicted priorities.
-- Recurring category and priority error patterns.
+- `reports/baseline_evaluation.json`
+- `reports/candidate_comparison.json`
+- `reports/error_analysis.json`
 
-This report evaluates the deterministic keyword baseline against the supplied synthetic dataset. Its results should not be interpreted as production model performance.
+These reports describe the supplied dataset and deterministic baseline. They do not establish the performance of a live model on real customer workloads.
+
 ## Release Governance
 
-The release gate evaluates candidates against configured thresholds for task success, latency, cost, and safety.
+The release gate checks candidate metrics against configured thresholds for:
 
-Deployment policy enforcement checks whether a candidate has an approved release record and whether required human approval has been granted.
+- Task success
+- Latency
+- Cost per task
+- Safety evidence
 
-Release decisions are recorded in an audit log to support later inspection and review.
+The deployment policy separately checks release approval and any required human approval. Passing evaluation does not automatically authorize deployment.
 
-The platform separates evaluation, release approval, and deployment permission so that passing an evaluation does not automatically authorize deployment.
+Release decisions are recorded in a local JSONL audit file for subsequent inspection.
 
-## Observability and Readiness
+## Observability and API
 
-The application exposes operational endpoints and request-level signals to support local development and troubleshooting.
+The application exposes operational endpoints for health, readiness, request metrics, and evaluation monitoring.
 
-- **Health endpoint:** Checks whether the application is responding.
-- **Readiness endpoint:** Checks required local resources, including the evaluation dataset and audit-log directory.
-- **Request IDs:** Associates requests with identifiers to support log correlation.
-- **Request metrics:** Tracks request counts, server errors, and request latency.
-- **Logging:** Records request activity for troubleshooting and operational visibility.
+Start the application:
 
-The current metrics implementation is in memory and is intended for demonstration rather than distributed production monitoring.
+```powershell
+python -m uvicorn app.main:app --reload
+```
 
-## Continuous Integration
+Once it is running, explore the interactive API documentation:
 
-GitHub Actions runs the automated test suite on pushes and pull requests targeting `main` or `master`.
+- API documentation: `http://127.0.0.1:8000/docs`
+- Health: `http://127.0.0.1:8000/health`
+- Readiness: `http://127.0.0.1:8000/ready`
+- Request metrics: `http://127.0.0.1:8000/metrics`
 
-The workflow:
+Evaluation monitoring endpoints include evaluation summary and evaluation health. Their exact paths and response schemas are defined by the API implementation.
 
-1. Checks out the repository.
-2. Sets up Python 3.12.
-3. Installs dependencies from `requirements.txt`.
-4. Runs the test suite using pytest.
+Request IDs support log correlation. Structured logs provide request-level operational visibility, while the current metrics implementation is intended for local demonstration rather than distributed production monitoring.
 
-A failed test run causes the workflow to fail, providing an early warning before changes are merged.
+## Frontend Dashboard
+
+The project includes a React and TypeScript dashboard built with Vite. It provides a visual interface for exploring use cases, evaluations, release governance, audit history, and observability.
+
+### Start the frontend
+
+Prerequisites: Node.js and npm.
+
+Open a **second terminal** from the repository root, keeping the FastAPI backend running in the first terminal.
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite in your terminal (typically `http://localhost:5173`).
+
+The Vite development server proxies API requests to the FastAPI backend at `http://127.0.0.1:8000`.
+
+### Validate the frontend
+
+Run these commands from the `frontend` directory:
+
+```powershell
+npm run lint
+npm run build
+```
+
+The build runs TypeScript checks and generates the production frontend assets in `frontend/dist/`.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.12 or a compatible Python version
+- Python compatible with the pinned dependencies
 - Git
 - A terminal or IDE such as Visual Studio Code
 
-The GitHub Actions workflow uses Python 3.12. Local development may use a different Python version, subject to dependency compatibility.
+The GitHub Actions workflow is configured for Python 3.12. Local development has also been tested in Python 3.14.7.
 
-### Install Dependencies
+### Install
 
-Clone the repository and navigate to the project directory. Then create and activate a virtual environment.
+Clone the repository and navigate to its root directory. Then create and activate a virtual environment.
 
-On Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
 python -m venv .venv
@@ -146,63 +154,50 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-### Run the Application
-
-From the repository root:
-
-```powershell
-python -m uvicorn app.main:app --reload
-```
-
-Open the interactive API documentation at:
-
-`http://127.0.0.1:8000/docs`
-
-The health and readiness endpoints can be tested at:
-
-- `http://127.0.0.1:8000/health`
-- `http://127.0.0.1:8000/ready`
-
-The metrics endpoint is available at:
-
-- `http://127.0.0.1:8000/metrics`
-
-### Run Tests
-
-From the repository root, with the virtual environment activated:
+### Run tests
 
 ```powershell
 python -m pytest -q
 ```
 
-The test suite covers API behavior, evaluation, release gates, deployment policies, audit logging, readiness, and metrics.
-
-## Current Limitations
-
-- Use-case registrations are stored in memory and reset when the application restarts.
-- Release audit history uses a local JSONL file rather than a managed database.
-- Human approval is not connected to authenticated reviewer identities.
-- Evaluation uses a small synthetic dataset and a deterministic keyword-based baseline, not a live LLM.
-- Candidate comparison latency and cost values are simulated rather than measured from actual model calls.
-- Safety has not been independently validated.
-- Deployment policy checks permission; it does not deploy a model or application.
-- Request metrics are stored in memory and are not shared across multiple application workers.
-- Production authentication, authorization, secrets management, and distributed observability are not fully implemented.
-
-These limitations are documented explicitly so that demonstration results are not mistaken for production-level AI performance or deployment readiness.
+The latest verified local run completed with **103 passed tests** and one Starlette deprecation warning. Test results may change as the project evolves.
 
 ## Technology Stack
 
 - **Language:** Python
-- **API framework:** FastAPI
-- **Data validation:** Pydantic
+- **API:** FastAPI
+- **Validation and settings:** Pydantic and Pydantic Settings
 - **Testing:** Pytest
-- **CI/CD checks:** GitHub Actions
+- **HTTP test client:** HTTPX
+- **ASGI server:** Uvicorn
+- **CI:** GitHub Actions
 - **Evaluation data:** JSON
 - **Audit storage:** JSONL
 
+## Current Limitations
+
+This project is an offline portfolio prototype, not a production deployment platform.
+
+- The evaluation dataset is small and synthetic.
+- The baseline is deterministic and keyword-based; no live LLM provider is integrated.
+- Candidate comparison latency and cost figures are simulated rather than measured from real model calls.
+- Use-case registrations and request metrics are held in memory.
+- Audit history is stored locally rather than in a managed database.
+- Human approval is not tied to authenticated reviewer identities.
+- Safety scores are not independently validated safety guarantees.
+- Deployment policy checks permission; it does not deploy an application or model.
+- Production authentication, authorization, enterprise identity, secrets management, distributed tracing, and external monitoring integrations are not fully implemented.
+
+The application should not be exposed to untrusted users or treated as production-ready without additional security and operational work.
+
+## Recommended Next Steps
+
+1. Evaluate against representative, approved real-world datasets.
+2. Add persistent storage for evaluation runs, release decisions, and audit history.
+3. Integrate a model provider and measure actual latency, token usage, and cost.
+4. Implement authentication, authorization, secret management, and data-retention controls.
+5. Validate reliability and security in a controlled deployment environment.
+
 ## Project Goal
 
-Demonstrate practical engineering patterns for evaluating AI applications, enforcing release policies, maintaining auditable decisions, and exposing operational signals before deployment.
-
-The project is a portfolio demonstration of AI application evaluation and governance workflows. It is not yet a production deployment platform, and its evaluation results do not establish the performance or safety of a live AI model.
+Demonstrate practical engineering patterns for AI application evaluation, release governance, auditable decisions, and operational visibility before deployment—without requiring a paid LLM API key or Docker for local development.

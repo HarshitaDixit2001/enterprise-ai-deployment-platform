@@ -24,3 +24,26 @@ Thumbs.db
 # Generated reports and local data
 reports/*
 !reports/.gitkeep
+
+# Local configuration and credentials
+secrets/
+*.pem
+*.key
+
+# Generated reports and logs
+*.log
+
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+
+# Local frontend environment files
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Package manager and local debug logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
