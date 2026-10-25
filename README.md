@@ -67,6 +67,16 @@ Expected report paths, as configured by the application:
 
 These reports describe the supplied dataset and deterministic baseline. They do not establish the performance of a live model on real customer workloads.
 
+### Interpreting evaluation results
+
+- **Task success rate and accuracy:** Measure how well the candidate performs on the supplied evaluation dataset.
+- **Failed case IDs:** Identify individual examples that need investigation; review the error analysis report to find recurring failure patterns.
+- **Candidate comparison:** Compare metrics and errors across candidates using the same dataset to identify regressions and trade-offs.
+- **Release decision:** A candidate is approved only when all configured release gates pass, including quality, latency, cost, and safety evidence. Missing or invalid safety evidence fails closed and prevents approval.
+- **Human approval:** If deployment policy requires human approval, an approved evaluation alone is insufficient. The required approval must also be satisfied before deployment is authorized.
+
+Evaluation results are evidence for a release decision, not a guarantee of production performance. Review failed cases and relevant risks before approving a candidate.
+
 ## Release Governance
 
 The release gate checks candidate metrics against configured thresholds for:
