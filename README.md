@@ -1,53 +1,61 @@
-# Enterprise AI Deployment & Evaluation Platform
+# Enterprise AI Reliability & Deployment Platform
 
-A Python and FastAPI portfolio project demonstrating evaluation workflows, candidate comparison, release governance, deployment policy enforcement, audit logging, and observability for AI applications.
+An enterprise-focused AI evaluation and release-governance platform built with Python and FastAPI, with a React and TypeScript dashboard. It helps teams evaluate AI application candidates, compare model outputs, measure performance, identify risks, and make auditable release decisions before deployment.
 
-The platform focuses on an important enterprise AI engineering problem: **how to evaluate a candidate, make an evidence-based release decision, and verify deployment permission before release.**
+The platform demonstrates a core Applied AI Engineering workflow: **evaluate → analyze → gate → approve → audit**.
 
 ## Key Features
 
 - Dataset-based evaluation of AI application candidates
 - Task success, category accuracy, and priority accuracy metrics
-- Latency and estimated-cost tracking
-- Candidate comparison and error analysis reports
-- Configurable release gates for quality, latency, cost, and safety
+- Per-category accuracy and failed-case analysis
+- Baseline and candidate comparison using a shared evaluation dataset
+- Configurable release gates for quality, latency, cost, and safety evidence
+- Optional OpenAI-compatible model-provider integration
+- Real request-latency measurement and token-based cost estimation for provider calls
 - Fail-closed handling of missing safety evidence
-- Deployment policy checks and human approval requirements
+- Release decisions and human-approval policy checks
 - JSONL audit logging of release decisions
-- Health, readiness, and evaluation-monitoring endpoints
-- Request IDs, structured logging, and request metrics
+- Health, readiness, evaluation-monitoring, and request-metrics endpoints
+- Request IDs and structured logging
+- React and TypeScript frontend dashboard
 - Automated tests and GitHub Actions continuous integration
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    A[Client] --> B[FastAPI Application]
+    A[Client or Dashboard] --> B[FastAPI Application]
     B --> C[Use Case Registry]
-    B --> D[Evaluation Runner]
+    B --> D[Evaluation API]
     D --> E[Evaluation Dataset]
-    D --> F[Evaluation Metrics]
-    F --> G[Release Gate]
-    G --> H[Release Audit Log]
-    H --> I[Deployment Policy Check]
-    B --> J[Request Middleware]
-    J --> K[Request IDs, Logs and Metrics]
-    B --> L[Health and Readiness Checks]
+    D --> F[Baseline Predictor]
+    D --> G[Optional Model Provider]
+    F --> H[Evaluation Runner]
+    G --> H
+    H --> I[Evaluation Metrics]
+    I --> J[Release Gate]
+    J --> K[Release Audit Log]
+    K --> L[Deployment Policy]
+    B --> M[Request Middleware]
+    M --> N[Request IDs, Logs and Metrics]
+    B --> O[Health and Readiness]
 ```
 
-This diagram illustrates the main components and their relationships; it is not an exact execution trace for every API request.
+The diagram represents the main logical components. It is not an exact execution trace for every API request.
 
 ## Evaluation Workflow
 
-The evaluation pipeline runs predictions against a supplied synthetic customer-feedback dataset and calculates:
+The evaluation pipeline runs candidate predictions against a supplied synthetic customer-feedback dataset and calculates:
 
 - Task success rate
 - Category and priority accuracy
 - Per-category accuracy and failed case IDs
-- Average latency and estimated cost
+- Average request latency
+- Estimated cost per task
 - Average safety score when evidence is available
 
-Candidate comparison and error analysis help identify metric differences and recurring classification errors.
+Candidate comparison and error analysis help identify metric differences, regressions, and recurring classification errors.
 
 ### Generate reports
 
@@ -59,23 +67,54 @@ python -c "from app.evaluation.candidate_comparison import generate_baseline_com
 python -m app.evaluation.error_analysis
 ```
 
-Expected report paths, as configured by the application:
+Expected report paths:
 
 - `reports/baseline_evaluation.json`
 - `reports/candidate_comparison.json`
 - `reports/error_analysis.json`
 
-These reports describe the supplied dataset and deterministic baseline. They do not establish the performance of a live model on real customer workloads.
+These reports describe the configured dataset and baseline. They do not establish performance on real customer workloads.
+
+### Model-provider evaluation
+
+The platform includes an optional OpenAI-compatible chat-completions adapter. The existing deterministic baseline remains available without a paid model API.
+
+The provider endpoint evaluates the registered dataset for a use case, calculates metrics, applies the existing release gates, and records the resulting decision in the audit log.
+
+**Endpoint**
+
+```http
+POST /evaluations/{use_case_id}/provider-release-decision?candidate_id={candidate_id}
+```
+
+**Required environment variables**
+
+Configure these variables in your local environment before calling the endpoint:
+
+| Variable | Purpose |
+|---|---|
+| `AI_PROVIDER_BASE_URL` | Provider API base URL, including any required version path |
+| `AI_PROVIDER_API_KEY` | Provider authentication key |
+| `AI_PROVIDER_MODEL` | Model identifier |
+| `AI_PROVIDER_INPUT_USD_PER_MILLION` | Configured input-token price per million tokens |
+| `AI_PROVIDER_OUTPUT_USD_PER_MILLION` | Configured output-token price per million tokens |
+
+The adapter measures elapsed request latency and estimates cost using the token counts returned by the provider and the configured token prices. The estimate depends on correct pricing configuration and provider-reported usage.
+
+Provider calls may incur charges. Do not commit API keys to Git or place them in the README.
+
+**Safety limitation:** The provider adapter does not yet include a validated safety evaluator. It returns no safety score. Missing safety evidence must not be interpreted as a pass; the release gate must continue to enforce its configured fail-closed policy.
 
 ### Interpreting evaluation results
 
-- **Task success rate and accuracy:** Measure how well the candidate performs on the supplied evaluation dataset.
-- **Failed case IDs:** Identify individual examples that need investigation; review the error analysis report to find recurring failure patterns.
-- **Candidate comparison:** Compare metrics and errors across candidates using the same dataset to identify regressions and trade-offs.
-- **Release decision:** A candidate is approved only when all configured release gates pass, including quality, latency, cost, and safety evidence. Missing or invalid safety evidence fails closed and prevents approval.
-- **Human approval:** If deployment policy requires human approval, an approved evaluation alone is insufficient. The required approval must also be satisfied before deployment is authorized.
+- **Task success and accuracy:** Measure candidate performance on the supplied dataset.
+- **Failed case IDs:** Identify examples requiring investigation.
+- **Candidate comparison:** Examine metric changes and trade-offs across candidates evaluated on the same dataset.
+- **Latency and cost:** Assess performance and estimated operating cost against configured thresholds.
+- **Release decision:** A candidate is approved only when all required release gates pass.
+- **Human approval:** If deployment policy requires human approval, evaluation approval alone is insufficient.
 
-Evaluation results are evidence for a release decision, not a guarantee of production performance. Review failed cases and relevant risks before approving a candidate.
+Evaluation results provide evidence for release decisions, not guarantees of production performance.
 
 ## Release Governance
 
@@ -88,28 +127,30 @@ The release gate checks candidate metrics against configured thresholds for:
 
 The deployment policy separately checks release approval and any required human approval. Passing evaluation does not automatically authorize deployment.
 
-Release decisions are recorded in a local JSONL audit file for subsequent inspection.
+Release decisions are recorded in a local JSONL audit file for subsequent inspection. The current implementation is intended for local demonstration; it does not provide managed audit storage or authenticated reviewer identity.
 
 ## Observability and API
 
 The application exposes operational endpoints for health, readiness, request metrics, and evaluation monitoring.
 
-Start the application:
+### Start the backend
+
+From the repository root:
 
 ```powershell
 python -m uvicorn app.main:app --reload
 ```
 
-Once it is running, explore the interactive API documentation:
+Explore the interactive API documentation:
 
 - API documentation: `http://127.0.0.1:8000/docs`
 - Health: `http://127.0.0.1:8000/health`
 - Readiness: `http://127.0.0.1:8000/ready`
 - Request metrics: `http://127.0.0.1:8000/metrics`
 
-Evaluation monitoring endpoints include evaluation summary and evaluation health. Their exact paths and response schemas are defined by the API implementation.
+Evaluation summary and evaluation health endpoints are also available. Consult the API documentation for their exact paths and response schemas.
 
-Request IDs support log correlation. Structured logs provide request-level operational visibility, while the current metrics implementation is intended for local demonstration rather than distributed production monitoring.
+Request IDs support log correlation, and structured logs provide request-level visibility. Current metrics are intended for local demonstration rather than distributed production monitoring.
 
 ## Frontend Dashboard
 
@@ -119,7 +160,7 @@ The project includes a React and TypeScript dashboard built with Vite. It provid
 
 Prerequisites: Node.js and npm.
 
-Open a **second terminal** from the repository root, keeping the FastAPI backend running in the first terminal.
+Keep the FastAPI backend running in the first terminal. Open a second PowerShell terminal from the repository root:
 
 ```powershell
 cd frontend
@@ -127,7 +168,7 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite in your terminal (typically `http://localhost:5173`).
+Open the local URL printed by Vite, typically `http://localhost:5173`.
 
 The Vite development server proxies API requests to the FastAPI backend at `http://127.0.0.1:8000`.
 
@@ -140,7 +181,7 @@ npm run lint
 npm run build
 ```
 
-The build runs TypeScript checks and generates the production frontend assets in `frontend/dist/`.
+The build runs TypeScript checks and generates production frontend assets in `frontend/dist/`.
 
 ## Getting Started
 
@@ -148,15 +189,14 @@ The build runs TypeScript checks and generates the production frontend assets in
 
 - Python compatible with the pinned dependencies
 - Git
+- Node.js and npm for the frontend
 - A terminal or IDE such as Visual Studio Code
 
-The GitHub Actions workflow is configured for Python 3.12. Local development has also been tested in Python 3.14.7.
+The GitHub Actions workflow is configured for Python 3.12. Local development has also been tested with Python 3.14.7.
 
-### Install
+### Install the backend
 
-Clone the repository and navigate to its root directory. Then create and activate a virtual environment.
-
-Windows PowerShell:
+Clone the repository and navigate to its root directory. Create and activate a virtual environment:
 
 ```powershell
 python -m venv .venv
@@ -164,50 +204,61 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
+No model-provider credentials are required to run the deterministic baseline, execute the existing tests, or generate baseline reports.
+
 ### Run tests
+
+From the repository root:
 
 ```powershell
 python -m pytest -q
 ```
 
-The latest verified local run completed with **103 passed tests** and one Starlette deprecation warning. Test results may change as the project evolves.
+The latest verified suite completed with **111 passed tests and one Starlette deprecation warning**. Results may change as the project evolves.
+
+The provider API tests use mocked predictions, so they do not require paid model calls.
 
 ## Technology Stack
 
 - **Language:** Python
 - **API:** FastAPI
-- **Validation and settings:** Pydantic and Pydantic Settings
-- **Testing:** Pytest
-- **HTTP test client:** HTTPX
+- **Validation and configuration:** Pydantic and Pydantic Settings
+- **Evaluation:** Python evaluation pipeline and JSON datasets
+- **Optional model integration:** OpenAI-compatible chat-completions API
+- **HTTP client:** HTTPX
 - **ASGI server:** Uvicorn
-- **CI:** GitHub Actions
-- **Evaluation data:** JSON
+- **Frontend:** React, TypeScript, Vite
+- **Testing:** Pytest
 - **Audit storage:** JSONL
+- **CI:** GitHub Actions
 
 ## Current Limitations
 
-This project is an offline portfolio prototype, not a production deployment platform.
+This project is an evolving portfolio prototype, not a production deployment platform.
 
 - The evaluation dataset is small and synthetic.
-- The baseline is deterministic and keyword-based; no live LLM provider is integrated.
-- Candidate comparison latency and cost figures are simulated rather than measured from real model calls.
+- The deterministic baseline is keyword-based.
+- The optional provider adapter requires compatible provider configuration and may incur API charges.
+- The provider adapter does not yet implement a validated safety evaluator.
+- Cost estimates depend on configured prices and provider-reported token usage.
 - Use-case registrations and request metrics are held in memory.
 - Audit history is stored locally rather than in a managed database.
 - Human approval is not tied to authenticated reviewer identities.
-- Safety scores are not independently validated safety guarantees.
+- Safety evidence and scores are not guarantees of safety.
 - Deployment policy checks permission; it does not deploy an application or model.
-- Production authentication, authorization, enterprise identity, secrets management, distributed tracing, and external monitoring integrations are not fully implemented.
+- Production authentication, authorization, secrets management, data-retention controls, distributed tracing, and external monitoring integrations are not fully implemented.
 
-The application should not be exposed to untrusted users or treated as production-ready without additional security and operational work.
+Do not expose this prototype to untrusted users or treat it as production-ready without additional security and operational work.
 
 ## Recommended Next Steps
 
 1. Evaluate against representative, approved real-world datasets.
 2. Add persistent storage for evaluation runs, release decisions, and audit history.
-3. Integrate a model provider and measure actual latency, token usage, and cost.
-4. Implement authentication, authorization, secret management, and data-retention controls.
-5. Validate reliability and security in a controlled deployment environment.
+3. Add a validated safety-evaluation pipeline.
+4. Extend provider support with robust retry policies, timeouts, and provider-specific usage handling.
+5. Implement authentication, authorization, secret management, and data-retention controls.
+6. Validate reliability and security in a controlled deployment environment.
 
 ## Project Goal
 
-Demonstrate practical engineering patterns for AI application evaluation, release governance, auditable decisions, and operational visibility before deployment—without requiring a paid LLM API key or Docker for local development.
+Demonstrate practical Applied AI Engineering patterns for evaluating AI applications, measuring reliability and operating costs, enforcing release gates, recording auditable decisions, and checking deployment permission before release—while retaining a local baseline that can run without a paid model API key or Docker.

@@ -2,6 +2,10 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 import app.services.audit_service as audit_service
+from unittest.mock import patch
+
+from app.evaluation.dataset import load_named_dataset
+from app.evaluation.runner import Prediction
 client = TestClient(app)
 
 
@@ -275,3 +279,76 @@ def test_invalid_json_returns_client_error():
         )
 
     assert 400 <= response.status_code < 500
+
+
+
+def test_provider_release_decision_uses_mocked_predictions():
+    use_case_id = "provider-release-test"
+    create_test_use_case(use_case_id)
+
+    cases = load_named_dataset("customer_feedback_v1")
+    predictions = [
+        Prediction(
+            case_id=case.case_id,
+            predicted_category=case.expected_category,
+            predicted_priority=case.expected_priority,
+            latency_ms=100,
+            cost_usd=0.001,
+            safety_score=None,
+        )
+        for case in cases
+    ]
+
+    with patch(
+        "app.api.evaluations.predict_with_provider",
+        side_effect=predictions,
+    ) as mocked_predictor:
+        response = client.post(
+            f"/evaluations/{use_case_id}/provider-release-decision",
+            params={"candidate_id": "provider-candidate-v1"},
+        )
+
+    assert response.status_code == 200
+    assert mocked_predictor.call_count == len(cases)
+    assert response.json()["candidate_id"] == "provider-candidate-v1"
+
+
+def test_provider_release_decision_rejects_unknown_use_case():
+    with patch("app.api.evaluations.predict_with_provider") as predictor:
+        response = client.post(
+            "/evaluations/unknown-provider-case/provider-release-decision",
+            params={"candidate_id": "provider-v1"},
+        )
+
+    assert response.status_code == 404
+    predictor.assert_not_called()
+
+
+def test_provider_release_decision_handles_provider_failure():
+    use_case_id = "provider-release-failure"
+    create_test_use_case(use_case_id)
+
+    with patch(
+        "app.api.evaluations.predict_with_provider",
+        side_effect=RuntimeError("private provider details"),
+    ):
+        response = client.post(
+            f"/evaluations/{use_case_id}/provider-release-decision",
+            params={"candidate_id": "provider-v1"},
+        )
+
+    assert response.status_code == 502
+    assert "private provider details" not in response.text
+
+
+def test_provider_release_decision_requires_candidate_id():
+    use_case_id = "provider-release-validation"
+    create_test_use_case(use_case_id)
+
+    with patch("app.api.evaluations.predict_with_provider") as predictor:
+        response = client.post(
+            f"/evaluations/{use_case_id}/provider-release-decision"
+        )
+
+    assert response.status_code == 422
+    predictor.assert_not_called()

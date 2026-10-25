@@ -2,14 +2,10 @@
 from collections import defaultdict
 from typing import Callable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.evaluation.dataset import (
-    EvaluationCase,
-    load_dataset,
-)
-from pydantic import BaseModel, Field, ConfigDict
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from app.evaluation.dataset import EvaluationCase, load_dataset
+
 class Prediction(BaseModel):
     case_id: str
     predicted_category: str
