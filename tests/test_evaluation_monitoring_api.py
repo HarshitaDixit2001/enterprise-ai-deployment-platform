@@ -93,3 +93,34 @@ def test_evaluation_health_endpoint_returns_503_when_report_is_invalid(
 
     assert response.status_code == 503
     assert response.json() == expected
+
+
+def test_get_evaluation_report_returns_report_data(monkeypatch, tmp_path):
+    report_file = tmp_path / "baseline.json"
+    expected = {
+        "dataset": "customer_feedback_v1",
+        "dataset_size": 10,
+        "metrics": {"task_success_rate": 0.7},
+    }
+    report_file.write_text(
+        __import__("json").dumps(expected),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setitem(
+        evaluations.REPORT_FILES,
+        "baseline",
+        report_file,
+    )
+
+    response = client.get("/evaluations/reports/baseline")
+
+    assert response.status_code == 200
+    assert response.json() == expected
+
+
+def test_get_evaluation_report_returns_404_for_unknown_report():
+    response = client.get("/evaluations/reports/unknown")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["message"] == "Evaluation report not found."

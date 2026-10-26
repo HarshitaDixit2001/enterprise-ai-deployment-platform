@@ -845,6 +845,26 @@ function UseCasesPage({ useCases }: { useCases: ApiState<UseCase[]> }) {
 
 function EvaluationsPage({ summary }: { summary: ApiState<EvaluationSummary> }) {
   const reports = summary.data?.reports ?? {}
+  const [selectedReport, setSelectedReport] = useState<string | null>(null)
+  const [reportDetails, setReportDetails] = useState<Record<string, unknown> | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportError, setReportError] = useState<string | null>(null)
+
+  const openReport = async (name: string) => {
+    setSelectedReport(name)
+    setReportDetails(null)
+    setReportError(null)
+    setReportLoading(true)
+
+    try {
+      const data = await fetchApi<Record<string, unknown>>(`/evaluations/reports/${name}`)
+      setReportDetails(data)
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : 'Unable to load report.')
+    } finally {
+      setReportLoading(false)
+    }
+  }
 
   return (
     <>
@@ -852,37 +872,43 @@ function EvaluationsPage({ summary }: { summary: ApiState<EvaluationSummary> }) 
         <div>
           <div className="eyebrow">QUALITY & VALIDATION</div>
           <h1>Evaluations</h1>
-          <p>Review available evaluation reports and their documented limitations.</p>
+          <p>Review evaluation reports, inspect failures, and understand limitations.</p>
         </div>
       </div>
+
       <section className="metric-grid evaluation-status-grid">
         <MetricCard label="Available reports" value={String(Object.values(reports).filter((r) => r.status === 'available').length)} detail="Report files found and parsed" icon={CheckCircle2} tone="green" />
         <MetricCard label="Missing reports" value={String(summary.data?.missing_reports?.length ?? 0)} detail="Configured reports not found" icon={Database} tone="amber" />
         <MetricCard label="Evaluation readiness" value={summary.data?.ready ? 'Ready' : 'Review'} detail="Based on configured report availability" icon={ShieldCheck} tone="purple" />
       </section>
+
       <section className="panel full-panel">
         <div className="panel-heading">
           <div>
             <h2>Evaluation reports</h2>
-            <p>Data from GET /evaluations/summary</p>
+            <p>Select a report card to inspect its full results.</p>
           </div>
         </div>
+
         {summary.loading ? <LoadingState /> : summary.error ? (
           <ErrorState message={summary.error} onRetry={() => void summary.refresh()} />
         ) : Object.keys(reports).length ? (
           <div className="report-grid">
             {Object.entries(reports).map(([name, report]) => (
-              <article className="report-card" key={name}>
+              <button
+                type="button"
+                className={`report-card report-card-button${selectedReport === name ? ' selected' : ''}`}
+                key={name}
+                onClick={() => void openReport(name)}
+                disabled={report.status !== 'available'}
+                aria-pressed={selectedReport === name}
+              >
                 <div className="report-card-top">
                   <span className="report-icon"><BarChart3 size={20} /></span>
                   <StatusDot status={report.status ?? 'unknown'} />
                 </div>
                 <h3>{name.replaceAll('_', ' ')}</h3>
-                <p>
-                  {report.dataset ||
-                    ('path' in report ? String(report.path ?? '') : '') ||
-                    'Report details unavailable'}
-                </p>
+                <p>{report.dataset || ('path' in report ? String(report.path ?? '') : '') || 'Report details unavailable'}</p>
                 <div className="report-meta">
                   <span>Dataset size</span>
                   <strong>{formatNumber(report.dataset_size)}</strong>
@@ -899,7 +925,8 @@ function EvaluationsPage({ summary }: { summary: ApiState<EvaluationSummary> }) 
                     <strong>{formatPercent(report.error_rate)}</strong>
                   </div>
                 )}
-              </article>
+                <span className="report-open-hint">Click to view details →</span>
+              </button>
             ))}
           </div>
         ) : (
@@ -910,6 +937,78 @@ function EvaluationsPage({ summary }: { summary: ApiState<EvaluationSummary> }) 
           </div>
         )}
       </section>
+
+      {selectedReport && (
+        <section className="panel full-panel report-detail-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>{selectedReport.replaceAll('_', ' ')} details</h2>
+              <p>Full contents of the selected report file</p>
+            </div>
+            <button type="button" className="secondary-button" onClick={() => {
+              setSelectedReport(null)
+              setReportDetails(null)
+              setReportError(null)
+            }}>
+              Close details
+            </button>
+          </div>
+
+          {reportLoading ? <LoadingState /> : reportError ? (
+            <ErrorState message={reportError} onRetry={() => void openReport(selectedReport)} />
+          ) : reportDetails ? (
+<div className="report-readable">
+  {typeof reportDetails.metrics === 'object' && reportDetails.metrics !== null && (
+    <>
+      <div className="metric-grid">
+        {Object.entries(reportDetails.metrics as Record<string, unknown>)
+          .filter(([key, value]) =>
+            ['task_success_rate', 'category_accuracy', 'priority_accuracy'].includes(key)
+            && typeof value === 'number'
+          )
+          .map(([key, value]) => (
+            <MetricCard
+              key={key}
+              label={key.replaceAll('_', ' ')}
+              value={`${((value as number) * 100).toFixed(1)}%`}
+              detail="Evaluation metric"
+              icon={BarChart3}
+              tone="purple"
+            />
+          ))}
+      </div>
+
+      <section className="report-detail-section">
+        <h3>Failed cases</h3>
+        {Array.isArray((reportDetails.metrics as Record<string, unknown>).failed_case_ids)
+          && ((reportDetails.metrics as Record<string, unknown>).failed_case_ids as string[]).length > 0 ? (
+            <div className="report-failed-cases">
+              {((reportDetails.metrics as Record<string, unknown>).failed_case_ids as string[]).map((caseId) => (
+                <span key={caseId}>{caseId}</span>
+              ))}
+            </div>
+          ) : <p>No failed cases recorded.</p>}
+      </section>
+    </>
+  )}
+
+  {Array.isArray(reportDetails.limitations) && (
+    <section className="report-detail-section">
+      <h3>Report limitations</h3>
+      <ul className="limitations-list">
+        {(reportDetails.limitations as string[]).map((item) => <li key={item}>{item}</li>)}
+      </ul>
+    </section>
+  )}
+
+  <details>
+    <summary>View raw report JSON</summary>
+    <pre className="report-json">{JSON.stringify(reportDetails, null, 2)}</pre>
+  </details>
+</div>          ) : null}
+        </section>
+      )}
+
       {summary.data?.limitations && summary.data.limitations.length > 0 && (
         <section className="panel full-panel">
           <div className="panel-heading">

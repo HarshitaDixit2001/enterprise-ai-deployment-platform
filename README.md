@@ -156,6 +156,23 @@ Request IDs support log correlation, and structured logs provide request-level v
 
 The project includes a React and TypeScript dashboard built with Vite. It provides a visual interface for exploring use cases, evaluations, release governance, audit history, and observability.
 
+### Dashboard Screenshots
+
+#### Overview Dashboard
+Platform health, readiness checks, registered use cases, and evaluation performance.
+
+![Overview Dashboard](docs/screenshots/Overview_Dashboard.png)
+
+#### Evaluation Dashboard
+Evaluation reports, dataset coverage, and error-analysis results.
+
+![Evaluation Dashboard](docs/screenshots/Evaluation_Dashboard.png)
+
+#### Release Governance
+Quality thresholds, latency and cost limits, safety requirements, and human-approval policy.
+
+![Release Governance](docs/screenshots/Release_Governance.png)
+
 ### Start the frontend
 
 Prerequisites: Node.js and npm.

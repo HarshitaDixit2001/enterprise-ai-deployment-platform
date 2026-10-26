@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -16,7 +17,7 @@ from app.services.audit_service import (
     record_release_decision,
 )
 from app.services.release_gate import evaluate_release
-
+from app.evaluation.summary import REPORT_FILES, generate_evaluation_summary
 router = APIRouter(prefix="/evaluations", tags=["Evaluations"])
 
 
@@ -155,3 +156,29 @@ async def get_release_history(
         )
 
     return list_release_decisions(use_case_id)
+
+
+@router.get("/reports/{report_name}")
+async def get_evaluation_report(report_name: str) -> dict[str, Any]:
+    report_path = REPORT_FILES.get(report_name)
+
+    if report_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Evaluation report not found.",
+        )
+
+    try:
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Evaluation report file not found.",
+        ) from exc
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Evaluation report could not be read.",
+        ) from exc
+
+    return report_data
