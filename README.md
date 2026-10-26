@@ -278,4 +278,5 @@ Do not expose this prototype to untrusted users or treat it as production-ready 
 
 ## Project Goal
 
-Demonstrate practical Applied AI Engineering patterns for evaluating AI applications, measuring reliability and operating costs, enforcing release gates, recording auditable decisions, and checking deployment permission before release—while retaining a local baseline that can run without a paid model API key or Docker.
+Demonstrate practical Applied AI Architecture patterns for designing reliable, evaluable, and governable AI systems. The platform brings together evaluation pipelines, candidate comparisons, operational metrics, configurable release gates, human-approval workflows, and auditable decisions to support evidence-based deployment readiness. Its modular API and dashboard provide a foundation for integrating AI applications, evaluating changes before release, and making reliability, cost, safety-evidence, and governance requirements explicit. A local evaluation baseline runs without a paid model API key or Docker.
+
